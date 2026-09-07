@@ -1,0 +1,8 @@
+{
+  "name": "AJS Boys Hostel",
+  "short_name": "AJS Hostel",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#070B14",
+  "theme_color": "#0B1222"
+}
