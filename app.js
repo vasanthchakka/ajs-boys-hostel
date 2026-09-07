@@ -102,7 +102,7 @@ window.adminSwitchTab = function (tabId) {
 // ==========================================
 // ADMIN AUTHENTICATION & FORGOT PASSWORD LOGIC
 // ==========================================
-let adminPassword = localStorage.getItem('ajs_admin_pass') || 'Admin123';
+let adminPassword = 'Admin123';
 
 document.getElementById('adm-login-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -158,7 +158,7 @@ window.sendResetCode = function () {
         });
 };
 
-window.verifyResetCode = function () {
+window.verifyResetCode = async function () {
     const enteredOtp = document.getElementById('adm-forgot-otp').value.trim();
     const newPass = document.getElementById('adm-forgot-newpassword').value.trim();
     const savedOtp = localStorage.getItem('ajs_reset_otp');
@@ -181,8 +181,14 @@ window.verifyResetCode = function () {
         return;
     }
 
-    adminPassword = newPass;
-    localStorage.setItem('ajs_admin_pass', newPass);
+    try {
+        await set(ref(db, 'settings/adminPassword'), newPass);
+        adminPassword = newPass;
+    } catch (error) {
+        console.error('Error saving password:', error);
+        alert('Could not save password. Check your internet connection.');
+        return;
+    }
     localStorage.removeItem('ajs_reset_otp');
     localStorage.removeItem('ajs_reset_otp_expiry');
 
@@ -191,103 +197,33 @@ window.verifyResetCode = function () {
 };
 
 // ==========================================
-// RESIDENT AUTHENTICATION & FORGOT PASSWORD LOGIC
+// RESIDENT AUTHENTICATION (Room Number + Phone Number match)
 // ==========================================
-let targetResidentResetId = null;
-
-window.toggleResidentForgotPassword = function (show) {
-    if (show) {
-        document.getElementById('rp-login-form').classList.add('hidden');
-        document.getElementById('rp-forgot-form').classList.remove('hidden');
-        document.getElementById('rp-forgot-step1').classList.remove('hidden');
-        document.getElementById('rp-forgot-step2').classList.add('hidden');
-    } else {
-        document.getElementById('rp-forgot-form').classList.add('hidden');
-        document.getElementById('rp-login-form').classList.remove('hidden');
-        document.getElementById('rp-forgot-step1').classList.remove('hidden');
-        document.getElementById('rp-forgot-step2').classList.add('hidden');
-        document.getElementById('rp-forgot-email').value = '';
-        document.getElementById('rp-forgot-otp').value = '';
-        document.getElementById('rp-forgot-newpassword').value = '';
-        targetResidentResetId = null;
-    }
+window.toggleResidentForgot = function (show) {
+    document.getElementById('rp-login-form').classList.toggle('hidden', show);
+    document.getElementById('rp-forgot-form').classList.toggle('hidden', !show);
 };
 
-window.sendResidentResetCode = function () {
-    const emailInput = document.getElementById('rp-forgot-email').value.trim().toLowerCase();
-    if (!emailInput) {
-        alert('Please enter your registered email address.');
-        return;
-    }
+window.residentResetPassword = async function () {
+    const room = document.getElementById('rp-forgot-room').value.trim().toLowerCase();
+    const newPass = document.getElementById('rp-forgot-newpassword').value.trim();
+
+    if (!room || !newPass) { alert('Enter room number and a new password.'); return; }
+    if (newPass.length < 4) { alert('Password should be at least 4 characters.'); return; }
 
     const matchId = Object.keys(residentsData).find(id =>
-        (residentsData[id].email || '').trim().toLowerCase() === emailInput
+        (residentsData[id].room || '').trim().toLowerCase() === room
     );
-
-    if (!matchId) {
-        alert('No resident found with this email address.');
-        return;
-    }
-
-    targetResidentResetId = matchId;
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    localStorage.setItem('ajs_res_reset_otp', otp);
-    localStorage.setItem('ajs_res_reset_expiry', String(expiry));
-
-    const btn = document.getElementById('rp-btn-send-code');
-    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
-
-    emailjs.send('service_htvrcng', 'template_f0tmvtc', { passcode: otp, to_email: emailInput })
-        .then(() => {
-            document.getElementById('rp-forgot-step1').classList.add('hidden');
-            document.getElementById('rp-forgot-step2').classList.remove('hidden');
-        })
-        .catch((error) => {
-            console.error('Failed to send reset code:', error);
-            alert('Could not send the reset code. Check your internet connection and try again.');
-        })
-        .finally(() => {
-            if (btn) { btn.disabled = false; btn.textContent = 'SEND RESET CODE'; }
-        });
-};
-
-window.verifyResidentResetCode = async function () {
-    const enteredOtp = document.getElementById('rp-forgot-otp').value.trim();
-    const newPass = document.getElementById('rp-forgot-newpassword').value.trim();
-    const savedOtp = localStorage.getItem('ajs_res_reset_otp');
-    const expiry = Number(localStorage.getItem('ajs_res_reset_expiry') || 0);
-
-    if (!enteredOtp || !newPass) {
-        alert('Please enter both the code and a new password.');
-        return;
-    }
-    if (newPass.length < 4) {
-        alert('Password should be at least 4 characters.');
-        return;
-    }
-    if (!savedOtp || Date.now() > expiry) {
-        alert('This code has expired. Please request a new one.');
-        return;
-    }
-    if (enteredOtp !== savedOtp) {
-        alert('Incorrect code. Please check your email and try again.');
-        return;
-    }
+    if (!matchId) { alert('Room number not found.'); return; }
 
     try {
-        await set(ref(db, `residents/${targetResidentResetId}/password`), newPass);
-        residentsData[targetResidentResetId].password = newPass;
-
-        localStorage.removeItem('ajs_res_reset_otp');
-        localStorage.removeItem('ajs_res_reset_expiry');
-
-        alert('Password successfully reset! You can now log in with your new password.');
-        toggleResidentForgotPassword(false);
+        await set(ref(db, `residents/${matchId}/password`), newPass);
+        residentsData[matchId].password = newPass;
+        alert('Password reset! You can now log in.');
+        toggleResidentForgot(false);
     } catch (error) {
-        console.error('Error updating resident password:', error);
-        alert('Failed to update password. Please check your internet connection.');
+        console.error('Error resetting password:', error);
+        alert('Could not reset password. Check your internet connection.');
     }
 };
 
@@ -510,6 +446,7 @@ async function startRealtimeSync() {
             roomsData = data.rooms || {};
             complaintsData = data.complaints || {};
             noticesData = data.notices || {};
+            if (data.settings && data.settings.adminPassword) adminPassword = data.settings.adminPassword;
 
             populateResidentDropdowns();
             populateMonthDropdown();
