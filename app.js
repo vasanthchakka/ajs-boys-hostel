@@ -1373,6 +1373,32 @@ window.toggleProfileEdit = function (show) {
     }
 };
 
+window.togglePayQR = function (show) {
+    document.getElementById('rp-pay-qr-box').classList.toggle('hidden', !show);
+};
+
+window.togglePasswordReset = function (show) {
+    document.getElementById('rp-pw-view').classList.toggle('hidden', show);
+    document.getElementById('rp-pw-form').classList.toggle('hidden', !show);
+};
+
+window.handleProfilePasswordReset = async function (e) {
+    e.preventDefault();
+    const newPass = document.getElementById('rp-new-password').value.trim();
+    if (newPass.length < 4) { alert('Password should be at least 4 characters.'); return; }
+
+    try {
+        await set(ref(db, `residents/${currentResidentId}/password`), newPass);
+        residentsData[currentResidentId].password = newPass;
+        alert('Password changed successfully!');
+        document.getElementById('rp-pw-form').reset();
+        togglePasswordReset(false);
+    } catch (error) {
+        console.error('Error changing password:', error);
+        alert('Could not change password. Check your internet connection.');
+    }
+};
+
 window.handleProfileSave = async function (e) {
     e.preventDefault();
     const email = document.getElementById('rp-edit-email').value.trim();
