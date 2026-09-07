@@ -1375,6 +1375,11 @@ window.toggleProfileEdit = function (show) {
 
 window.togglePayQR = function (show) {
     document.getElementById('rp-pay-qr-box').classList.toggle('hidden', !show);
+    if (show) {
+        const amount = document.getElementById('rp-home-amount').textContent.replace(/[^0-9]/g, '');
+        const upiLink = `upi://pay?pa=8978432933@ybl&pn=AJS%20Boys%20Hostel&am=${amount}&cu=INR`;
+        document.getElementById('rp-upi-link').href = upiLink;
+    }
 };
 
 window.togglePasswordReset = function (show) {
